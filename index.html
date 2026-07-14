@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Control de Filamento — TRIX3D</title>
+<meta name="theme-color" content="#16151a">
+<meta name="description" content="Control de stock de filamento por peso para TRIX3D">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#16151a; --surface:#1f1e24; --surface-2:#26252c; --border:#34333b;
+    --text:#edebe6; --text-muted:#9a98a3; --accent:#3ee7c0; --accent-dim:#28a382;
+    --warn:#e8553f; --ok:#6fcf97; --radius:14px; --accent-ink:#0d1512;
+  }
+  html[data-theme="light"]{
+    --bg:#f5f4f1; --surface:#ffffff; --surface-2:#eeece7; --border:#ddd9d2;
+    --text:#1c1b1a; --text-muted:#726f68; --accent:#0f9d82; --accent-dim:#0c8069;
+    --warn:#c8402c; --ok:#2f9e5b; --accent-ink:#ffffff;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);}
+  #app{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100%;padding:24px 20px 60px;-webkit-font-smoothing:antialiased;transition:background .2s,color .2s;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  .header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:18px;}
+  .header h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em;margin:0 0 4px;}
+  .header .sub{color:var(--text-muted);font-size:13px;}
+  .header .sub b{color:var(--accent);font-weight:600;}
+
+  .btn{background:var(--accent);color:var(--accent-ink);border:none;border-radius:10px;padding:11px 18px;font-weight:600;font-size:14px;cursor:pointer;font-family:'Inter',sans-serif;transition:transform .12s, background .12s;}
+  .btn:hover{background:var(--accent-dim);transform:translateY(-1px);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-danger{color:var(--warn);}
+  .btn-sm{padding:7px 12px;font-size:12px;}
+  .btn-block{width:100%;}
+
+  .nav{display:flex;gap:6px;margin-bottom:22px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:0;}
+  .nav-btn{background:transparent;border:none;color:var(--text-muted);padding:10px 14px;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .nav-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .nav-btn:hover{color:var(--text);}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
+  @media(max-width:720px){.stats{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+  .stat .label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  .stat .value{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;}
+  .stat.alert .value{color:var(--warn);}
+  .stat.good .value{color:var(--ok);}
+
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;}
+  .search{flex:1;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;font-family:'Inter',sans-serif;}
+  .search:focus{outline:none;border-color:var(--accent);}
+  .chip{background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:20px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap;}
+  .chip.active{border-color:var(--accent);color:var(--accent);background:rgba(62,231,192,0.08);}
+  .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;}
+  .card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;overflow:hidden;}
+  .hazard{position:absolute;top:12px;right:-34px;transform:rotate(45deg);width:130px;text-align:center;padding:3px 0;font-size:9px;font-weight:700;letter-spacing:.08em;background:repeating-linear-gradient(45deg,#f4c430 0 8px,#161512 8px 16px);}
+  .hazard span{background:#f4c430;padding:2px 8px;border-radius:2px;display:inline-block;color:#161512;}
+
+  .ring-wrap{display:flex;justify-content:center;margin-bottom:12px;position:relative;}
+  .ring-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+  .ring-center .g{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:19px;}
+  .ring-center .init{font-size:10px;color:var(--text-muted);margin-top:2px;}
+  .ring circle{transition:stroke-dashoffset .5s ease;}
+
+  .card .brand{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;margin-bottom:2px;text-align:center;}
+  .card .meta{font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:2px;}
+  .card .colorname{font-size:12px;text-align:center;margin-bottom:4px;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .swatch{width:11px;height:11px;border-radius:50%;border:1px solid rgba(128,128,128,0.35);display:inline-block;}
+  .badge{display:inline-block;font-size:10px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-muted);padding:2px 8px;border-radius:20px;margin:0 auto 10px;text-align:center;}
+  .badge-wrap{text-align:center;margin-bottom:10px;}
+  .card .cost{text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted);margin-bottom:14px;}
+  .card-actions{display:flex;flex-direction:column;gap:6px;}
+  .card-actions .btn{width:100%;padding:10px 6px;font-size:12px;}
+  .icon-row{display:flex;gap:6px;}
+  .icon-btn{background:var(--surface-2);border:1px solid var(--border);color:var(--text-muted);border-radius:8px;height:34px;flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;}
+  .icon-btn:hover{color:var(--text);border-color:var(--accent);}
+
+  .history{margin-top:12px;border-top:1px dashed var(--border);padding-top:10px;}
+  .history summary{font-size:11px;color:var(--text-muted);cursor:pointer;list-style:none;}
+  .history summary::-webkit-details-marker{display:none;}
+  .history summary:before{content:'▸ ';}
+  .history[open] summary:before{content:'▾ ';}
+  .hrow{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);padding:5px 0;border-bottom:1px solid var(--surface-2);gap:8px;}
+  .hrow .amt{font-family:'JetBrains Mono',monospace;color:var(--text);white-space:nowrap;}
+
+  .empty{text-align:center;padding:50px 20px;color:var(--text-muted);border:1px dashed var(--border);border-radius:var(--radius);}
+  .empty .display{font-size:17px;color:var(--text);margin-bottom:6px;}
+
+  .overlay{position:fixed;inset:0;background:rgba(10,10,12,0.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;overflow-y:auto;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;margin:auto;}
+  .modal.wide{max-width:640px;}
+  .modal h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin:0 0 4px;}
+  .modal .modal-sub{font-size:12px;color:var(--text-muted);margin-bottom:16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;}
+  .field input, .field select, .field textarea{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;font-family:'Inter',sans-serif;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--accent);}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  input[type=color]{padding:3px;height:40px;cursor:pointer;}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;}
+  .modal-actions .btn, .modal-actions .btn-ghost{flex:1;}
+  .modal-error{color:var(--warn);font-size:12px;margin-bottom:10px;min-height:14px;}
+  .modal-note{font-size:11px;color:var(--text-muted);background:var(--surface-2);border-radius:8px;padding:10px 12px;margin-top:4px;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--accent);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;z-index:80;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center;}
+  .toast.show{opacity:1;}
+
+  .list-row{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;gap:10px;flex-wrap:wrap;}
+  .list-row .info b{font-family:'Space Grotesk',sans-serif;font-size:14px;}
+  .list-row .info .sub{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .list-row .actions{display:flex;gap:6px;}
+
+  table.mini{width:100%;border-collapse:collapse;font-size:13px;}
+  table.mini th{text-align:left;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid var(--border);}
+  table.mini td{padding:8px;border-bottom:1px solid var(--surface-2);vertical-align:middle;}
+  table.mini td.num{font-family:'JetBrains Mono',monospace;text-align:right;}
+  .tag-ok{color:var(--ok);font-size:11px;}
+  .tag-bad{color:var(--warn);font-size:11px;}
+  .tag-warn{color:#e0a730;font-size:11px;}
+
+  .plan-summary{background:var(--surface-2);border-radius:10px;padding:14px;margin:14px 0;font-size:13px;}
+  .plan-summary.ok{border:1px solid var(--ok);}
+  .plan-summary.bad{border:1px solid var(--warn);}
+
+  .bars{display:flex;align-items:flex-end;gap:10px;height:150px;margin:20px 0 8px;}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .bar{width:100%;max-width:38px;background:var(--accent);border-radius:4px 4px 0 0;transition:height .4s ease;}
+  .bar-label{font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center;}
+  .bar-value{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text);margin-bottom:4px;}
+
+  .section-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;margin:26px 0 12px;}
+  .section-title:first-child{margin-top:0;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:640px){.two-col{grid-template-columns:1fr;}}
+  .file-input-label{display:inline-block;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;cursor:pointer;}
+  .file-input-label:hover{border-color:var(--accent);}
+  .price-line{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .price-line b{color:var(--accent);}
+
+  /* auth screens */
+  .auth-wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .auth-box{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 28px;}
+  .auth-box h1{font-family:'Space Grotesk',sans-serif;font-size:22px;margin:0 0 4px;text-align:center;}
+  .auth-box .sub{color:var(--text-muted);font-size:13px;text-align:center;margin-bottom:24px;}
+  .auth-toggle{display:flex;gap:8px;justify-content:center;margin-top:16px;font-size:13px;color:var(--text-muted);}
+  .auth-toggle a{color:var(--accent);cursor:pointer;text-decoration:none;}
+  .auth-toggle a:hover{text-decoration:underline;}
+  .auth-forgot{text-align:center;margin-top:10px;}
+  .auth-forgot a{color:var(--text-muted);font-size:12px;cursor:pointer;}
+  .auth-forgot a:hover{color:var(--accent);}
+  .user-chip{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 14px 6px 6px;font-size:12px;}
+  .user-chip .avatar{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;font-family:'Space Grotesk',sans-serif;}
+  .spinner{width:28px;height:28px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin 0.8s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .center-screen{min-height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px;text-align:center;color:var(--text-muted);}
+  .config-box{max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;text-align:left;}
+  .config-box h2{font-family:'Space Grotesk',sans-serif;color:var(--text);margin-top:0;}
+  .config-box code{background:var(--surface-2);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);}
+  .config-box ol{padding-left:20px;font-size:13px;line-height:1.7;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+  // ============ CONFIGURACIÓN DE FIREBASE ============
+  // Pegar acá las claves de TU proyecto de Firebase (Configuración del proyecto > Tus apps > SDK setup).
+  // Mientras diga "PEGA_TU_..." la app va a mostrar la pantalla de configuración pendiente.
+  const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB2Z2YVFDRGC9zuswO6-KOuWHOUtYk3WYY",
+  authDomain: "trix3d-filamento.firebaseapp.com",
+  projectId: "trix3d-filamento",
+  storageBucket: "trix3d-filamento.firebasestorage.app",
+  messagingSenderId: "564863601077",
+  appId: "1:564863601077:web:025a16d407cc808edcf1fc"
+  };
+</script>
+
+<script>
+(function(){
+  const MATERIALS = ['PLA','PETG','ABS','TPU','PLA Silk','Resina','Otro'];
+  const CURRENCIES = { ARS:{symbol:'$', locale:'es-AR'}, USD:{symbol:'US$', locale:'en-US'}, EUR:{symbol:'€', locale:'de-DE'} };
+
+  let state = {
+    spools: [], products: [], printers: [], plans: [],
+    settings: { lowStockThreshold: 15, electricityCostPerKwh: 0, avgPrinterPowerKw: 0.15,
+      theme: 'dark', currency: 'ARS', marginPercent: 100, shoppingWarnDays: 14 }
+  };
+  let currentTab = 'inventario';
+  let filterMaterial = 'Todos';
+  let filterPrinter = 'Todos';
+  let searchTerm = '';
+  let loaded = false;
+
+  // ---- estado de autenticación ----
+  const firebaseConfigured = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PEGA_TU_') !== 0;
+  let authChecking = true;
+  let currentUser = null;
+  let authMode = 'login'; // 'login' | 'signup'
+  let authError = '';
+  let authBusy = false;
+  let saving = false;
+  let db = null, auth = null;
+
+  const app = document.getElementById('app');
+
+  function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+  function fmtG(n){ return Math.round(n).toLocaleString('es-AR') + ' g'; }
+  function fmtKg(n){ return (n/1000).toLocaleString('es-AR',{maximumFractionDigits:2}) + ' kg'; }
+  function fmtMoney(n){ const c = CURRENCIES[state.settings.currency] || CURRENCIES.ARS; return c.symbol + Math.round(n||0).toLocaleString(c.locale); }
+  function fmtDate(iso){ const d=new Date(iso); return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}); }
+  function pct(s){ return s.initialWeight>0 ? Math.max(0, s.remainingWeight/s.initialWeight*100) : 0; }
+  function escapeHTML(str){ const d=document.createElement('div'); d.textContent = str==null?'':String(str); return d.innerHTML; }
+
+  function migrate(parsed){
+    const s = Object.assign({ spools:[], products:[], printers:[], plans:[],
+      settings:{ lowStockThreshold:15, electricityCostPerKwh:0, avgPrinterPowerKw:0.15, theme:'dark', currency:'ARS', marginPercent:100, shoppingWarnDays:14 } }, parsed||{});
+    s.spools = (s.spools||[]).map(sp => Object.assign({ printerId:null, usage:[] }, sp));
+    s.spools.forEach(sp => { sp.usage = (sp.usage||[]).map(u => Object.assign({ materialCost:0, energyCost:0, totalCost:0, productId:null, qty:null, planId:null }, u)); });
+    s.products = (s.products||[]).map(p => Object.assign({ marginPercent:null }, p));
+    s.plans = (s.plans||[]).map(p => Object.assign({ eventDate:null, appliedAt:null }, p));
+    s.settings = Object.assign({ lowStockThreshold:15, electricityCostPerKwh:0, avgPrinterPowerKw:0.15, theme:'dark', currency:'ARS', marginPercent:100, shoppingWarnDays:14 }, s.settings||{});
+    return s;
+  }
+
+  function userDocRef(){ return db.collection('users').doc(currentUser.uid); }
+
+  async function loadUserData(){
+    loaded = false; paint();
+    try{
+      const snap = await userDocRef().get();
+      if(snap.exists && snap.data() && snap.data().json){ state = migrate(JSON.parse(snap.data().json)); }
+      else { state = migrate(null); }
+    }catch(e){
+      showToast('No se pudo cargar tu inventario. Revisá tu conexión.');
+      state = migrate(null);
+    }
+    loaded = true;
+    applyTheme();
+    paint();
+  }
+
+  async function saveData(){
+    if(!currentUser || !db) return;
+    saving = true;
+    try{
+      await userDocRef().set({ json: JSON.stringify(state), updatedAt: firebase.firestore.FieldValue.serverTimestamp(), email: currentUser.email });
+    }catch(e){
+      showToast('No se pudo guardar (¿sin conexión?). Se reintenta cuando vuelva la red.');
+    }
+    saving = false;
+  }
+
+  function applyTheme(){
+    try{ document.documentElement.setAttribute('data-theme', state.settings.theme || 'dark'); }catch(e){}
+  }
+
+  function showToast(msg){
+    const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+    document.body.appendChild(t);
+    if(window.requestAnimationFrame) requestAnimationFrame(()=> t.classList.add('show')); else t.classList.add('show');
+    setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),300); }, 2400);
+  }
+
+  function closeModal(){ const ov = document.querySelector('.overlay'); if(ov) ov.remove(); }
+
+  function computeCost(spool, grams, product){
+    const materialCost = spool.initialWeight>0 ? (grams/spool.initialWeight)*(spool.cost||0) : 0;
+    let powerKw = state.settings.avgPrinterPowerKw || 0;
+    if(spool.printerId){ const pr = state.printers.find(p=>p.id===spool.printerId); if(pr && pr.powerKw) powerKw = pr.powerKw; }
+    const hours = (product && product.printHours) ? product.printHours : 0;
+    const energyCost = hours * powerKw * (state.settings.electricityCostPerKwh||0);
+    return { materialCost, energyCost, totalCost: materialCost + energyCost };
+  }
+
+  function avgCostPerGram(){
+    let totalCost=0, totalWeight=0;
+    state.spools.forEach(s=>{ totalCost += (s.cost||0); totalWeight += (s.initialWeight||0); });
+    return totalWeight>0 ? totalCost/totalWeight : 0;
+  }
+
+  function estimateProductCost(p){
+    const cpg = avgCostPerGram();
+    const materialCost = (p.gramsPerUnit||0) * cpg;
+    const energyCost = (p.printHours||0) * (state.settings.avgPrinterPowerKw||0) * (state.settings.electricityCostPerKwh||0);
+    const totalCost = materialCost + energyCost;
+    const margin = (p.marginPercent==null || p.marginPercent==='') ? state.settings.marginPercent : p.marginPercent;
+    const suggestedPrice = totalCost * (1 + (margin||0)/100);
+    return { materialCost, energyCost, totalCost, margin, suggestedPrice };
+  }
+
+  function allUsage(){
+    const rows = [];
+    state.spools.forEach(sp => (sp.usage||[]).forEach(u => rows.push(Object.assign({}, u, {
+      spoolLabel: (sp.brand||sp.material), material: sp.material, colorName: sp.colorName
+    }))));
+    return rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
+  }
+
+  /* ================= NAV / RENDER ================= */
+  function setTab(t){ currentTab = t; renderMainApp(); }
+
+  function userInitials(){
+    const email = currentUser && currentUser.email ? currentUser.email : '?';
+    return email.slice(0,2).toUpperCase();
+  }
+
+  function renderMainApp(){
+    if(!loaded){ app.innerHTML = `<div class="center-screen"><div class="spinner"></div>Cargando tu inventario...</div>`; return; }
+    const tabs = [
+      ['inventario','Inventario'], ['productos','Productos'], ['plan','Planificar feria'],
+      ['compras','Compras'], ['stats','Estadísticas'], ['config','Configuración']
+    ];
+    app.innerHTML = `
+      <div class="header">
+        <div><h1>Control de Filamento</h1><div class="sub"><b>TRIX3D</b> — inventario, costos y planificación</div></div>
+        <div class="user-chip">
+          <div class="avatar">${userInitials()}</div>
+          <span>${escapeHTML(currentUser.email)}</span>
+          <button class="icon-btn" style="width:26px;height:26px;font-size:12px" onclick="FIL.logout()" title="Cerrar sesión">⏻</button>
+        </div>
+      </div>
+      <div class="nav">${tabs.map(([k,l])=>`<button class="nav-btn ${currentTab===k?'active':''}" onclick="FIL.setTab('${k}')">${l}</button>`).join('')}</div>
+      <div id="tabBody"></div>
+    `;
+    const body = document.getElementById('tabBody');
+    if(currentTab==='inventario') body.innerHTML = inventarioHTML();
+    else if(currentTab==='productos') body.innerHTML = productosHTML();
+    else if(currentTab==='plan') body.innerHTML = planHTML();
+    else if(currentTab==='compras') body.innerHTML = comprasHTML();
+    else if(currentTab==='stats') body.innerHTML = statsHTML();
+    else if(currentTab==='config'){ body.innerHTML = configHTML(); bindConfigEvents(); }
+
+    if(currentTab==='inventario'){
+      const si = document.getElementById('searchInput');
+      if(si){ si.addEventListener('input', (e)=>{ searchTerm = e.target.value; renderGridOnly(); }); si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
+    }
+  }
+
+  /* ================= INVENTARIO ================= */
+  function stats(){
+    const totalSpools = state.spools.length;
+    const totalG = state.spools.reduce((a,s)=>a+s.remainingWeight,0);
+    const totalValue = state.spools.reduce((a,s)=>{ const frac = s.initialWeight>0 ? s.remainingWeight/s.initialWeight : 0; return a + (s.cost||0)*frac; },0);
+    const low = state.spools.filter(s=>pct(s)<=state.settings.lowStockThreshold).length;
+    return {totalSpools, totalG, totalValue, low};
+  }
+
+  function ringSVG(s){
+    const r = 46, c = 2*Math.PI*r, p = pct(s)/100, offset = c*(1-p);
+    return `<svg class="ring" width="120" height="120" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--border)" stroke-width="10"/>
+      <circle cx="60" cy="60" r="${r}" fill="none" stroke="${s.colorHex}" stroke-width="10" stroke-linecap="round"
+        stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 60 60)"/>
+    </svg>`;
+  }
+
+  function cardHTML(s){
+    const low = pct(s) <= state.settings.lowStockThreshold;
+    const usage = (s.usage||[]).slice().reverse().slice(0,6);
+    const printer = state.printers.find(p=>p.id===s.printerId);
+    return `
+    <div class="card" data-id="${s.id}">
+      ${low ? '<div class="hazard"><span>STOCK BAJO</span></div>' : ''}
+      <div class="ring-wrap">${ringSVG(s)}
+        <div class="ring-center"><div class="g">${fmtG(s.remainingWeight)}</div><div class="init">de ${fmtG(s.initialWeight)}</div></div>
+      </div>
+      <div class="brand">${escapeHTML(s.brand || 'Sin marca')}</div>
+      <div class="meta">${escapeHTML(s.material)}</div>
+      <div class="colorname"><span class="swatch" style="background:${s.colorHex}"></span>${escapeHTML(s.colorName||'')}</div>
+      ${printer ? `<div class="badge-wrap"><span class="badge">🖨 ${escapeHTML(printer.name)}</span></div>` : ''}
+      <div class="cost">${s.cost ? fmtMoney(s.cost) + ' el rollo' : 'sin costo cargado'}</div>
+      <div class="card-actions">
+        <button class="btn" onclick="FIL.openUsage('${s.id}')">Registrar uso</button>
+        <div class="icon-row">
+          <button class="icon-btn" onclick="FIL.openDuplicate('${s.id}')" title="Duplicar rollo">⧉</button>
+          <button class="icon-btn" onclick="FIL.openEdit('${s.id}')" title="Editar">✎</button>
+          <button class="icon-btn" onclick="FIL.confirmDelete('${s.id}')" title="Eliminar">🗑</button>
+        </div>
+      </div>
+      ${usage.length ? `<details class="history"><summary>Historial (${(s.usage||[]).length})</summary>
+        ${usage.map(u=>`<div class="hrow"><span>${fmtDate(u.date)} — ${escapeHTML(u.note||'sin nota')}</span><span class="amt">-${fmtG(u.grams)} · ${fmtMoney(u.totalCost)}</span></div>`).join('')}
+      </details>` : ''}
+    </div>`;
+  }
+
+  function filteredSpools(){
+    let list = state.spools.slice();
+    if(filterMaterial !== 'Todos') list = list.filter(s=>s.material===filterMaterial);
+    if(filterPrinter !== 'Todos') list = list.filter(s=> (filterPrinter==='__none__' ? !s.printerId : s.printerId===filterPrinter));
+    if(searchTerm.trim()){
+      const q = searchTerm.trim().toLowerCase();
+      list = list.filter(s => (s.brand||'').toLowerCase().includes(q) || (s.colorName||'').toLowerCase().includes(q) || (s.material||'').toLowerCase().includes(q));
+    }
+    list.sort((a,b)=> pct(a) - pct(b));
+    return list;
+  }
+
+  function inventarioHTML(){
+    const st = stats();
+    const list = filteredSpools();
+    const materialsPresent = ['Todos', ...Array.from(new Set(state.spools.map(s=>s.material)))];
+    return `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn" onclick="FIL.openAdd()">+ Nuevo rollo</button></div>
+      <div class="stats">
+        <div class="stat"><div class="label">Rollos</div><div class="value">${st.totalSpools}</div></div>
+        <div class="stat"><div class="label">Peso restante</div><div class="value">${fmtKg(st.totalG)}</div></div>
+        <div class="stat"><div class="label">Valor en stock</div><div class="value">${fmtMoney(st.totalValue)}</div></div>
+        <div class="stat ${st.low>0?'alert':''}"><div class="label">Stock bajo</div><div class="value">${st.low}</div></div>
+      </div>
+      <div class="controls"><input class="search" id="searchInput" placeholder="Buscar por marca, color o material..." value="${escapeHTML(searchTerm)}"/></div>
+      <div class="chip-row">${materialsPresent.map(m=>`<div class="chip ${m===filterMaterial?'active':''}" onclick="FIL.setFilter('material','${m}')">${m}</div>`).join('')}</div>
+      ${state.printers.length ? `<div class="chip-row">
+        <div class="chip ${filterPrinter==='Todos'?'active':''}" onclick="FIL.setFilter('printer','Todos')">Todas las impresoras</div>
+        ${state.printers.map(p=>`<div class="chip ${filterPrinter===p.id?'active':''}" onclick="FIL.setFilter('printer','${p.id}')">🖨 ${escapeHTML(p.name)}</div>`).join('')}
+        <div class="chip ${filterPrinter==='__none__'?'active':''}" onclick="FIL.setFilter('printer','__none__')">Sin asignar</div>
+      </div>` : ''}
+      <div id="gridZone">${gridOrEmpty(list)}</div>
+    `;
+  }
+  function gridOrEmpty(list){
+    if(list.length) return `<div class="grid">${list.map(cardHTML).join('')}</div>`;
+    if(state.spools.length===0) return `<div class="empty"><div class="display">Todavía no cargaste ningún rollo</div>Sumá tu primer filamento para empezar a llevar el control.</div>`;
+    return `<div class="empty">No hay rollos que coincidan con el filtro/búsqueda.</div>`;
+  }
+  function renderGridOnly(){ const zone = document.getElementById('gridZone'); if(zone) zone.innerHTML = gridOrEmpty(filteredSpools()); }
+  function setFilter(kind, val){ if(kind==='material') filterMaterial = val; if(kind==='printer') filterPrinter = val; renderMainApp(); }
+
+  function openAdd(){ renderFormModal(null); }
+  function openEdit(id){ const s = state.spools.find(x=>x.id===id); if(s) renderFormModal(s); }
+  function openDuplicate(id){
+    const s = state.spools.find(x=>x.id===id);
+    if(!s) return;
+    renderFormModal(null, { brand:s.brand, material:s.material, colorName:s.colorName, colorHex:s.colorHex, initialWeight:s.initialWeight, cost:s.cost, printerId:s.printerId });
+  }
+
+  function renderFormModal(spool, prefill){
+    const isEdit = !!spool;
+    const d = spool || prefill || {};
+    const ov = document.createElement('div'); ov.className='overlay';
+    ov.innerHTML = `
+      <div class="modal">
+        <h2>${isEdit ? 'Editar rollo' : (prefill ? 'Duplicar rollo' : 'Nuevo rollo')}</h2>
+        ${prefill ? '<div class="modal-sub">Se copiaron los datos del rollo original. Ajustá el peso si hace falta.</div>' : ''}
+        <div class="modal-error" id="formError"></div>
+        <div class="field-row">
+          <div class="field"><label>Marca</label><input id="f_brand" value="${d.brand?escapeHTML(d.brand):''}" placeholder="Creality, eSun..."/></div>
+          <div class="field"><label>Material</label><select id="f_material">${MATERIALS.map(m=>`<option ${d.material===m?'selected':''}>${m}</option>`).join('')}</select></div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="flex:2"><label>Nombre del color</label><input id="f_colorname" value="${d.colorName?escapeHTML(d.colorName):''}" placeholder="Verde esmeralda translúcido"/></div>
+          <div class="field" style="flex:1"><label>Color</label><input type="color" id="f_colorhex" value="${d.colorHex||'#3ee7c0'}"/></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Peso inicial (g)</label><input type="number" id="f_initial" min="0" value="${d.initialWeight!=null?d.initialWeight:1000}"/></div>
+          <div class="field"><label>Peso restante (g)</label><input type="number" id="f_remaining" min="0" value="${isEdit?d.remainingWeight:(d.initialWeight!=null?d.initialWeight:1000)}"/></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Costo del rollo</label><input type="number" id="f_cost" min="0" value="${d.cost||''}" placeholder="8500"/></div>
+          <div class="field"><label>Impresora</label><select id="f_printer">
+            <option value="">Sin asignar</option>
+            ${state.printers.map(p=>`<option value="${p.id}" ${d.printerId===p.id?'selected':''}>${escapeHTML(p.name)}</option>`).join('')}
+          </select></div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="FIL.closeModal()">Cancelar</button>
+          <button class="btn" id="saveSpoolBtn">${isEdit?'Guardar cambios':'Agregar rollo'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeModal(); });
+    document.getElementById('saveSpoolBtn').addEventListener('click', ()=>{
+      const brand = document.getElementById('f_brand').value.trim();
+      const material = document.getElementById('f_material').value;
+      const colorName = document.getElementById('f_colorname').value.trim();
+      const colorHex = document.getElementById('f_colorhex').value;
+      const initial = parseFloat(document.getElementById('f_initial').value);
+      const remaining = parseFloat(document.getElementById('f_remaining').value);
+      const cost = parseFloat(document.getElementById('f_cost').value) || 0;
+      const printerId = document.getElementById('f_printer').value || null;
+      const err = document.getElementById('formError');
+      if(isNaN(initial) || initial <= 0){ err.textContent = 'Cargá un peso inicial válido.'; return; }
+      if(isNaN(remaining) || remaining < 0){ err.textContent = 'Cargá un peso restante válido.'; return; }
+      if(remaining > initial){ err.textContent = 'El restante no puede ser mayor al inicial.'; return; }
+      if(isEdit){ Object.assign(spool, { brand, material, colorName, colorHex, initialWeight:initial, remainingWeight:remaining, cost, printerId }); }
+      else { state.spools.push({ id: uid('sp'), brand, material, colorName, colorHex, initialWeight:initial, remainingWeight:remaining, cost, printerId, createdAt: new Date().toISOString(), usage: [] }); }
+      closeModal(); saveData(); renderMainApp();
+      showToast(isEdit ? 'Rollo actualizado' : 'Rollo agregado');
+    });
+  }
+
+  function openUsage(id){
+    const s = state.spools.find(x=>x.id===id);
+    if(!s) return;
+    const ov = document.createElement('div'); ov.className='overlay';
+    ov.innerHTML = `
+      <div class="modal">
+        <h2>Registrar uso — ${escapeHTML(s.brand||s.material)}</h2>
+        <div class="modal-sub">Quedan ${fmtG(s.remainingWeight)}</div>
+        <div class="modal-error" id="usageError"></div>
+        <div class="field"><label>Producto</label>
+          <select id="u_product">
+            <option value="">Manual (sin producto)</option>
+            ${state.products.map(p=>`<option value="${p.id}">${escapeHTML(p.name)} — ${p.gramsPerUnit}g${p.printHours?(' · '+p.printHours+'h'):''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field-row" id="qtyRow" style="display:none">
+          <div class="field"><label>Cantidad</label><input type="number" id="u_qty" min="1" value="1"/></div>
+        </div>
+        <div class="field"><label>Gramos usados</label><input type="number" id="u_grams" min="0" placeholder="35"/></div>
+        <div class="field"><label>Nota</label><input id="u_note" placeholder="Dummy 13 armor, Pokéball..."/></div>
+        <div class="modal-note" id="costPreview">Costo estimado: ${fmtMoney(0)}</div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="FIL.closeModal()">Cancelar</button>
+          <button class="btn" id="saveUsageBtn">Descontar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeModal(); });
+
+    const prodSel = document.getElementById('u_product');
+    const qtyRow = document.getElementById('qtyRow');
+    const qtyInput = document.getElementById('u_qty');
+    const gramsInput = document.getElementById('u_grams');
+    const noteInput = document.getElementById('u_note');
+    const preview = document.getElementById('costPreview');
+
+    function currentProduct(){ return state.products.find(p=>p.id===prodSel.value) || null; }
+    function syncGramsFromProduct(){
+      const p = currentProduct();
+      if(p){ qtyRow.style.display='flex'; const qty = parseFloat(qtyInput.value)||1; gramsInput.value = Math.round(p.gramsPerUnit*qty); if(!noteInput.value) noteInput.value = p.name; }
+      else { qtyRow.style.display='none'; }
+      updatePreview();
+    }
+    function updatePreview(){
+      const p = currentProduct();
+      const grams = parseFloat(gramsInput.value)||0;
+      const c = computeCost(s, grams, p);
+      preview.innerHTML = `Costo estimado: <b>${fmtMoney(c.totalCost)}</b>` + (c.energyCost>0 ? ` (material ${fmtMoney(c.materialCost)} + luz ${fmtMoney(c.energyCost)})` : '');
+    }
+    prodSel.addEventListener('change', syncGramsFromProduct);
+    qtyInput.addEventListener('input', syncGramsFromProduct);
+    gramsInput.addEventListener('input', updatePreview);
+    updatePreview();
+
+    document.getElementById('saveUsageBtn').addEventListener('click', ()=>{
+      const grams = parseFloat(gramsInput.value);
+      const note = noteInput.value.trim();
+      const p = currentProduct();
+      const err = document.getElementById('usageError');
+      if(isNaN(grams) || grams <= 0){ err.textContent = 'Cargá una cantidad válida de gramos.'; return; }
+      if(grams > s.remainingWeight){ err.textContent = `Solo quedan ${fmtG(s.remainingWeight)} en este rollo.`; return; }
+      const c = computeCost(s, grams, p);
+      s.remainingWeight -= grams;
+      if(!s.usage) s.usage = [];
+      s.usage.push({ id: uid('u'), grams, note, date: new Date().toISOString(), productId: p?p.id:null, qty: p?(parseFloat(qtyInput.value)||1):null, materialCost: c.materialCost, energyCost: c.energyCost, totalCost: c.totalCost });
+      closeModal(); saveData(); renderMainApp();
+      const nowLow = pct(s) <= state.settings.lowStockThreshold;
+      showToast(nowLow ? `Uso registrado — ¡${escapeHTML(s.brand||s.material)} quedó con stock bajo!` : 'Uso registrado');
+    });
+  }
+
+  function confirmDelete(id){
+    const s = state.spools.find(x=>x.id===id);
+    if(!s) return;
+    const ov = document.createElement('div'); ov.className='overlay';
+    ov.innerHTML = `
+      <div class="modal">
+        <h2>Eliminar rollo</h2>
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:18px">¿Eliminar ${escapeHTML(s.brand||'este rollo')} — ${escapeHTML(s.colorName||s.material)}? Se pierde también su historial de uso.</p>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="FIL.closeModal()">Cancelar</button>
+          <button class="btn" style="background:var(--warn);color:#fff" id="confirmDelBtn">Eliminar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeModal(); });
+    document.getElementById('confirmDelBtn').addEventListener('click', ()=>{
+      state.spools = state.spools.filter(x=>x.id!==id);
+      closeModal(); saveData(); renderMainApp();
+      showToast('Rollo eliminado');
+    });
+  }
+
+  /* ================= PRODUCTOS ================= */
+  function productosHTML(){
+    return `
+      <div class="modal-note" style="margin-bottom:16px">El precio sugerido usa el costo promedio por gramo de tus rollos cargados, más luz si cargaste horas de impresión, más tu margen de ganancia (configurable en Configuración, o por producto).</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn" onclick="FIL.openProductForm()">+ Nuevo producto</button></div>
+      ${state.products.length ? state.products.map(p=>{
+        const est = estimateProductCost(p);
+        return `<div class="list-row">
+          <div class="info"><b>${escapeHTML(p.name)}</b>
+            <div class="sub">${p.gramsPerUnit} g por unidad${p.printHours?(' · '+p.printHours+' h de impresión'):''}</div>
+            <div class="price-line">Costo est. ${fmtMoney(est.totalCost)} · Precio sugerido (margen ${est.margin}%): <b>${fmtMoney(est.suggestedPrice)}</b></div>
+          </div>
+          <div class="actions">
+            <button class="icon-btn" onclick="FIL.openProductForm('${p.id}')" title="Editar">✎</button>
+            <button class="icon-btn" onclick="FIL.deleteProduct('${p.id}')" title="Eliminar">🗑</button>
+          </div>
+        </div>`;
+      }).join('') : `<div class="empty"><div class="display">No cargaste productos todavía</div>Cargá tus productos (Dummy 13, Pokéball, llaveros...) con su peso en gramos para descontar stock más rápido, planificar ferias y ver precio sugerido.</div>`}
+    `;
+  }
+  function openProductForm(id){
+    const p = id ? state.products.find(x=>x.id===id) : null;
+    const isEdit = !!p;
+    const ov = document.createElement('div'); ov.className='overlay';
+    ov.innerHTML = `
+      <div class="modal">
+        <h2>${isEdit?'Editar producto':'Nuevo producto'}</h2>
+        <div class="modal-error" id="prodError"></div>
+        <div class="field"><label>Nombre</label><input id="p_name" value="${isEdit?escapeHTML(p.name):''}" placeholder="Dummy 13, Pokéball, Llavero..."/></div>
+        <div class="field-row">
+          <div class="field"><label>Gramos por unidad</label><input type="number" id="p_grams" min="0" value="${isEdit?p.gramsPerUnit:''}" placeholder="35"/></div>
+          <div class="field"><label>Horas de impresión (opcional)</label><input type="number" step="0.1" id="p_hours" min="0" value="${isEdit?(p.printHours||''):''}" placeholder="1.5"/></div>
+        </div>
+        <div class="field"><label>Margen de ganancia % (opcional — vacío usa el margen general)</label><input type="number" id="p_margin" min="0" value="${isEdit&&p.marginPercent!=null?p.marginPercent:''}" placeholder="${state.settings.marginPercent}"/></div>
+        <div class="modal-note">Las horas de impresión se usan para estimar el costo de luz. El margen define el precio sugerido de venta.</div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="FIL.closeModal()">Cancelar</button>
+          <button class="btn" id="saveProdBtn">${isEdit?'Guardar':'Agregar'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeModal(); });
+    document.getElementById('saveProdBtn').addEventListener('click', ()=>{
+      const name = document.getElementById('p_name').value.trim();
+      const grams = parseFloat(document.getElementById('p_grams').value);
+      const hours = parseFloat(document.getElementById('p_hours').value) || 0;
+      const marginRaw = document.getElementById('p_margin').value;
+      const margin = marginRaw==='' ? null : parseFloat(marginRaw);
+      const err = document.getElementById('prodError');
+      if(!name){ err.textContent = 'Poné un nombre.'; return; }
+      if(isNaN(grams) || grams<=0){ err.textContent = 'Cargá los gramos por unidad.'; return; }
+      if(isEdit){ Object.assign(p, { name, gramsPerUnit: grams, printHours: hours, marginPercent: margin }); }
+      else { state.products.push({ id: uid('pr'), name, gramsPerUnit: grams, printHours: hours, marginPercent: margin, createdAt: new Date().toISOString() }); }
+      closeModal(); saveData(); renderMainApp();
+      showToast(isEdit?'Producto actualizado':'Producto agregado');
+    });
+  }
+  function deleteProduct(id){ state.products = state.products.filter(p=>p.id!==id); saveData(); renderMainApp(); showToast('Producto eliminado'); }
+
+  /* ================= PLANIFICAR FERIA ================= */
+  function planHTML(){
+    return `
+      <div class="modal-note" style="margin-bottom:16px">Armá la lista de lo que vas a llevar a la feria y la app te dice si te alcanza el filamento que tenés, rollo por rollo.</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn" onclick="FIL.openPlanForm()">+ Nuevo plan</button></div>
+      ${state.plans.length ? state.plans.map(pl=>{
+        const check = planCheck(pl);
+        const daysToEvent = pl.eventDate ? Math.ceil((new Date(pl.eventDate) - new Date())/(24*3600*1000)) : null;
+        return `<div class="list-row">
+          <div class="info"><b>${escapeHTML(pl.name)}</b>
+            <div class="sub">${pl.items.length} producto(s) · ${pl.eventDate ? ('Evento: '+fmtDate(pl.eventDate)+(daysToEvent!=null?(daysToEvent>=0?` (faltan ${daysToEvent}d)`:' (ya pasó)'):'')) : 'sin fecha'} ·
+            ${pl.appliedAt ? '<span class="tag-ok">Aplicado ✓</span>' : `<span class="${check.ok?'tag-ok':'tag-bad'}">${check.ok?'Alcanza el stock':'Falta stock'}</span>`}</div>
+          </div>
+          <div class="actions">
+            <button class="btn-ghost btn-sm" onclick="FIL.openPlanForm('${pl.id}')">Abrir</button>
+            <button class="icon-btn" onclick="FIL.deletePlan('${pl.id}')" title="Eliminar">🗑</button>
+          </div>
+        </div>`;
+      }).join('') : `<div class="empty"><div class="display">No armaste ningún plan todavía</div>Creá uno para la próxima feria y cargá qué productos y en qué cantidad pensás llevar.</div>`}
+    `;
+  }
+
+  function planCheck(plan){
+    const needBySpool = {};
+    let unassigned = 0;
+    plan.items.forEach(it=>{
+      const prod = state.products.find(p=>p.id===it.productId);
+      if(!prod) return;
+      const grams = prod.gramsPerUnit * it.qty;
+      if(it.spoolId){ needBySpool[it.spoolId] = (needBySpool[it.spoolId]||0) + grams; }
+      else { unassigned += grams; }
+    });
+    let ok = true;
+    const rows = Object.keys(needBySpool).map(spoolId=>{
+      const sp = state.spools.find(s=>s.id===spoolId);
+      const need = needBySpool[spoolId];
+      const have = sp ? sp.remainingWeight : 0;
+      const enough = have >= need;
+      if(!enough) ok = false;
+      return { spool: sp, spoolId, need, have, enough };
+    });
+    if(unassigned>0) ok = false;
+    return { ok, rows, unassigned };
+  }
+
+  function openPlanForm(id){
+    const pl = id ? state.plans.find(x=>x.id===id) : { id: uid('plan'), name:'Nueva feria', createdAt: new Date().toISOString(), eventDate:null, appliedAt:null, items: [] };
+    renderPlanModal(pl, !id);
+  }
+
+  function renderPlanModal(pl, isNew){
+    const check = planCheck(pl);
+    const ov = document.createElement('div'); ov.className='overlay';
+    ov.innerHTML = `
+      <div class="modal wide">
+        <h2><input id="plan_name" value="${escapeHTML(pl.name)}" style="background:transparent;border:none;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;width:100%;padding:0" /></h2>
+        <div class="field-row" style="margin-top:10px">
+          <div class="field"><label>Fecha del evento (opcional)</label><input type="date" id="plan_date" value="${pl.eventDate?pl.eventDate.slice(0,10):''}"/></div>
+        </div>
+        ${pl.appliedAt ? `<div class="tag-ok" style="margin-bottom:10px">Aplicado el ${fmtDate(pl.appliedAt)}</div>` : ''}
+
+        <table class="mini" id="planItemsTable">
+          <thead><tr><th>Producto</th><th>Cant.</th><th>Rollo asignado</th><th>Gramos</th><th></th></tr></thead>
+          <tbody>
+            ${pl.items.map((it,idx)=>{
+              const prod = state.products.find(p=>p.id===it.productId);
+              const grams = prod ? prod.gramsPerUnit*it.qty : 0;
+              const sp = it.spoolId ? state.spools.find(s=>s.id===it.spoolId) : null;
+              return `<tr>
+                <td>${prod?escapeHTML(prod.name):'—'}</td>
+                <td class="num">${it.qty}</td>
+                <td>${sp ? escapeHTML(sp.brand||sp.colorName) : '<span class="tag-bad">sin asignar</span>'}</td>
+                <td class="num">${fmtG(grams)}</td>
+                <td><button class="icon-btn" onclick="FIL.removePlanItem('${pl.id}',${idx})" title="Quitar">✕</button></td>
+              </tr>`;
+            }).join('') || `<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:16px">Sin items todavía</td></tr>`}
+          </tbody>
+        </table>
+
+        <div class="section-title" style="font-size:13px;margin:18px 0 8px">Agregar producto al plan</div>
+        <div class="field-row">
+          <div class="field" style="flex:2"><label>Producto</label><select id="pi_product">
+            ${state.products.length ? state.products.map(p=>`<option value="${p.id}">${escapeHTML(p.name)}</option>`).join('') : '<option value="">Cargá productos primero</option>'}
+          </select></div>
+          <div class="field" style="flex:1"><label>Cant.</label><input type="number" id="pi_qty" min="1" value="1"/></div>
+        </div>
+        <div class="field"><label>Rollo (opcional, para chequear stock)</label><select id="pi_spool">
+          <option value="">Sin asignar</option>
+          ${state.spools.map(s=>`<option value="${s.id}">${escapeHTML(s.brand||s.material)} — ${escapeHTML(s.colorName||'')} (${fmtG(s.remainingWeight)})</option>`).join('')}
+        </select></div>
+        <button class="btn-ghost btn-block" id="addItemBtn" ${!state.products.length?'disabled':''}>+ Agregar al plan</button>
+
+        <div class="plan-summary ${check.ok?'ok':'bad'}">
+          ${check.rows.map(r=>`<div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span>${r.spool?escapeHTML(r.spool.brand||r.spool.colorName):'Rollo eliminado'}</span>
+            <span class="${r.enough?'tag-ok':'tag-bad'}">${fmtG(r.need)} necesarios / ${fmtG(r.have)} disponibles${r.enough?' ✓':' — faltan '+fmtG(r.need-r.have)}</span>
+          </div>`).join('')}
+          ${check.unassigned>0 ? `<div class="tag-bad">${fmtG(check.unassigned)} sin rollo asignado — no se puede chequear ni aplicar</div>` : ''}
+          ${!check.rows.length && check.unassigned===0 ? '<span style="color:var(--text-muted)">Agregá items para ver el chequeo de stock.</span>' : ''}
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="FIL.closeModal()">Cerrar</button>
+          <button class="btn" id="applyPlanBtn" ${(!check.ok || !check.rows.length)?'disabled':''}>Aplicar plan (descontar stock)</button>
+        </div>
+        <div style="margin-top:10px;text-align:center">
+          <button class="btn-ghost btn-sm btn-danger" id="deletePlanBtn">Eliminar plan</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) saveAndClosePlan(pl, isNew); });
+
+    document.getElementById('plan_date').addEventListener('change', (e)=>{ pl.eventDate = e.target.value ? new Date(e.target.value).toISOString() : null; persistPlan(pl, isNew); });
+
+    document.getElementById('addItemBtn').addEventListener('click', ()=>{
+      const productId = document.getElementById('pi_product').value;
+      const qty = parseFloat(document.getElementById('pi_qty').value) || 1;
+      const spoolId = document.getElementById('pi_spool').value || null;
+      if(!productId) return;
+      pl.items.push({ id: uid('pi'), productId, qty, spoolId });
+      persistPlan(pl, isNew); closeModal(); renderPlanModal(pl, false);
+    });
+
+    document.getElementById('applyPlanBtn').addEventListener('click', ()=>{
+      const c = planCheck(pl);
+      if(!c.ok || !c.rows.length) return;
+      c.rows.forEach(r=>{
+        if(!r.spool) return;
+        r.spool.remainingWeight -= r.need;
+        if(!r.spool.usage) r.spool.usage=[];
+        const matCost = r.spool.initialWeight>0 ? (r.need/r.spool.initialWeight)*(r.spool.cost||0) : 0;
+        r.spool.usage.push({ id: uid('u'), grams: r.need, note: 'Plan: '+pl.name, date: new Date().toISOString(), productId:null, qty:null, planId: pl.id, materialCost: matCost, energyCost: 0, totalCost: matCost });
+      });
+      pl.appliedAt = new Date().toISOString();
+      persistPlan(pl, isNew); saveData(); closeModal(); renderMainApp();
+      showToast('Plan aplicado — stock descontado');
+    });
+
+    document.getElementById('deletePlanBtn').addEventListener('click', ()=>{
+      state.plans = state.plans.filter(x=>x.id!==pl.id);
+      saveData(); closeModal(); renderMainApp();
+      showToast('Plan eliminado');
+    });
+
+    document.getElementById('plan_name').addEventListener('change', (e)=>{ pl.name = e.target.value.trim() || 'Feria sin nombre'; persistPlan(pl, isNew); });
+  }
+
+  function persistPlan(pl, isNew){ if(isNew && !state.plans.find(x=>x.id===pl.id)) state.plans.push(pl); saveData(); }
+  function saveAndClosePlan(pl, isNew){ if(pl.items && pl.items.length) persistPlan(pl, isNew); closeModal(); renderMainApp(); }
+  function removePlanItem(planId, idx){
+    const pl = state.plans.find(p=>p.id===planId);
+    if(pl){ pl.items.splice(idx,1); saveData(); closeModal(); renderPlanModal(pl, false); }
+  }
+  function deletePlan(id){ state.plans = state.plans.filter(p=>p.id!==id); saveData(); renderMainApp(); showToast('Plan eliminado'); }
+
+  /* ================= COMPRAS (forecast + shopping list) ================= */
+  function consumptionForecast(){
+    const now = Date.now(); const windowDays = 30; const cutoff = now - windowDays*24*3600*1000;
+    return state.spools.map(s=>{
+      const recentGrams = (s.usage||[]).filter(u=> new Date(u.date).getTime()>=cutoff).reduce((a,u)=>a+u.grams,0);
+      const rate = recentGrams / windowDays;
+      const daysLeft = rate>0 ? s.remainingWeight/rate : null;
+      return { spool:s, rate, daysLeft };
+    });
+  }
+
+  function comprasHTML(){
+    const forecast = consumptionForecast()
+      .filter(f => f.daysLeft!==null && f.daysLeft <= state.settings.shoppingWarnDays)
+      .sort((a,b)=> a.daysLeft - b.daysLeft);
+
+    const pendingPlans = state.plans
+      .filter(p => !p.appliedAt)
+      .map(p => ({ plan:p, check: planCheck(p) }))
+      .filter(x => !x.check.ok && (x.check.rows.some(r=>!r.enough) || x.check.unassigned>0));
+
+    const nothing = !forecast.length && !pendingPlans.length;
+
+    return `
+      <div class="modal-note" style="margin-bottom:16px">Se calcula con el consumo de los últimos 30 días. El umbral de aviso (${state.settings.shoppingWarnDays} días) se cambia en Configuración.</div>
+
+      <div class="section-title">Se te va a acabar pronto</div>
+      ${forecast.length ? `<table class="mini"><thead><tr><th>Rollo</th><th>Consumo</th><th>Quedan</th><th>Se acaba</th></tr></thead><tbody>
+        ${forecast.map(f=>{
+          const eta = new Date(Date.now() + f.daysLeft*24*3600*1000);
+          return `<tr><td><span class="swatch" style="background:${f.spool.colorHex}"></span> ${escapeHTML(f.spool.brand||f.spool.material)} — ${escapeHTML(f.spool.colorName||'')}</td>
+          <td class="num">${f.rate.toFixed(1)} g/día</td>
+          <td class="num ${f.daysLeft<=7?'tag-bad':'tag-warn'}">${Math.max(0,Math.round(f.daysLeft))} días</td>
+          <td class="num">${eta.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})}</td></tr>`;
+        }).join('')}
+      </tbody></table>` : `<div class="modal-note">Ningún rollo muestra riesgo de agotarse pronto según tu consumo reciente.</div>`}
+
+      <div class="section-title">Falta para planes pendientes</div>
+      ${pendingPlans.length ? pendingPlans.map(({plan,check})=>`
+        <div class="list-row" style="align-items:flex-start">
+          <div class="info">
+            <b>${escapeHTML(plan.name)}</b>${plan.eventDate ? ` <span class="sub">— evento ${fmtDate(plan.eventDate)}</span>` : ''}
+            ${check.rows.filter(r=>!r.enough).map(r=>`<div class="sub tag-bad">${r.spool?escapeHTML(r.spool.brand||r.spool.colorName):'rollo eliminado'}: faltan ${fmtG(r.need-r.have)}</div>`).join('')}
+            ${check.unassigned>0 ? `<div class="sub tag-bad">${fmtG(check.unassigned)} sin rollo asignado</div>` : ''}
+          </div>
+          <div class="actions"><button class="btn-ghost btn-sm" onclick="FIL.openPlanForm('${plan.id}')">Abrir plan</button></div>
+        </div>`).join('') : `<div class="modal-note">No hay planes pendientes con faltante de stock.</div>`}
+
+      ${nothing ? `<div class="empty" style="margin-top:20px"><div class="display">Por ahora no hace falta comprar nada 🎉</div>Cuando un rollo empiece a escasear o armes un plan de feria que no te alcance, va a aparecer acá.</div>` : ''}
+    `;
+  }
+
+  /* ================= ESTADISTICAS ================= */
+  function statsHTML(){
+    const usage = allUsage();
+    if(!usage.length){
+      return `<div class="empty"><div class="display">Todavía no hay uso registrado</div>Cuando empieces a registrar consumos de filamento, acá vas a ver tu gasto mensual, gramos usados y qué se imprime más.</div>`;
+    }
+    const now = new Date();
+    const months = [];
+    for(let i=5;i>=0;i--){ const d = new Date(now.getFullYear(), now.getMonth()-i, 1); months.push({ key: d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'), label: d.toLocaleDateString('es-AR',{month:'short'}) }); }
+    const byMonth = {}; months.forEach(m=> byMonth[m.key] = { grams:0, cost:0 });
+    usage.forEach(u=>{ const d = new Date(u.date); const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); if(byMonth[key]){ byMonth[key].grams += u.grams; byMonth[key].cost += (u.totalCost||0); } });
+    const maxCost = Math.max(1, ...months.map(m=>byMonth[m.key].cost));
+    const maxGrams = Math.max(1, ...months.map(m=>byMonth[m.key].grams));
+    const totalGramsHist = usage.reduce((a,u)=>a+u.grams,0);
+    const totalCostHist = usage.reduce((a,u)=>a+(u.totalCost||0),0);
+    const thisMonth = byMonth[months[months.length-1].key];
+
+    const prodTally = {};
+    usage.forEach(u=>{ if(u.productId){ prodTally[u.productId] = (prodTally[u.productId]||0) + (u.qty||1); } });
+    let topProductLabel = '—';
+    const topProdId = Object.keys(prodTally).sort((a,b)=>prodTally[b]-prodTally[a])[0];
+    if(topProdId){ const p = state.products.find(x=>x.id===topProdId); if(p) topProductLabel = `${p.name} (${prodTally[topProdId]}x)`; }
+
+    return `
+      <div class="stats">
+        <div class="stat"><div class="label">Gasto este mes</div><div class="value">${fmtMoney(thisMonth.cost)}</div></div>
+        <div class="stat"><div class="label">Gramos este mes</div><div class="value">${fmtG(thisMonth.grams)}</div></div>
+        <div class="stat"><div class="label">Gasto histórico</div><div class="value">${fmtMoney(totalCostHist)}</div></div>
+        <div class="stat"><div class="label">Producto más impreso</div><div class="value" style="font-size:14px">${escapeHTML(topProductLabel)}</div></div>
+      </div>
+      <div class="section-title">Gasto mensual</div>
+      <div class="bars">${months.map(m=>{ const v = byMonth[m.key].cost; const h = Math.max(4, (v/maxCost)*130); return `<div class="bar-col"><div class="bar-value">${v>0?fmtMoney(v):''}</div><div class="bar" style="height:${h}px"></div><div class="bar-label">${m.label}</div></div>`; }).join('')}</div>
+      <div class="section-title">Gramos consumidos por mes</div>
+      <div class="bars">${months.map(m=>{ const v = byMonth[m.key].grams; const h = Math.max(4, (v/maxGrams)*130); return `<div class="bar-col"><div class="bar-value">${v>0?Math.round(v):''}</div><div class="bar" style="height:${h}px;background:var(--ok)"></div><div class="bar-label">${m.label}</div></div>`; }).join('')}</div>
+      <div class="section-title">Total histórico</div>
+      <div class="modal-note">Llevás gastados <b>${fmtMoney(totalCostHist)}</b> en filamento a lo largo de <b>${fmtG(totalGramsHist)}</b> (${(totalGramsHist/1000).toFixed(2)} kg) de material usado.</div>
+    `;
+  }
+
+  /* ================= CONFIG ================= */
+  function configHTML(){
+    return `
+      <div class="two-col">
+        <div>
+          <div class="section-title">Impresoras</div>
+          ${state.printers.length ? state.printers.map(p=>`
+            <div class="list-row">
+              <div class="info"><b>${escapeHTML(p.name)}</b><div class="sub">${p.powerKw} kW</div></div>
+              <div class="actions">
+                <button class="icon-btn" onclick="FIL.openPrinterForm('${p.id}')" title="Editar">✎</button>
+                <button class="icon-btn" onclick="FIL.deletePrinter('${p.id}')" title="Eliminar">🗑</button>
+              </div>
+            </div>`).join('') : `<div class="modal-note">Sin impresoras cargadas. Si tenés más de una, cargalas para asignar rollos y calcular el costo de luz correcto de cada una.</div>`}
+          <button class="btn-ghost btn-block" style="margin-top:8px" onclick="FIL.openPrinterForm()">+ Agregar impresora</button>
+
+          <div class="section-title">Apariencia y moneda</div>
+          <div class="field"><label>Tema</label><select id="cfg_theme">
+            <option value="dark" ${state.settings.theme==='dark'?'selected':''}>Oscuro</option>
+            <option value="light" ${state.settings.theme==='light'?'selected':''}>Claro</option>
+          </select></div>
+          <div class="field"><label>Moneda</label><select id="cfg_currency">
+            <option value="ARS" ${state.settings.currency==='ARS'?'selected':''}>Peso argentino ($)</option>
+            <option value="USD" ${state.settings.currency==='USD'?'selected':''}>Dólar (US$)</option>
+            <option value="EUR" ${state.settings.currency==='EUR'?'selected':''}>Euro (€)</option>
+          </select></div>
+          <div class="modal-note">Cambiar la moneda solo cambia el símbolo y el formato de número — no convierte los montos ya cargados. Cargá los costos directamente en la moneda que elijas acá.</div>
+        </div>
+
+        <div>
+          <div class="section-title">Costos y alertas</div>
+          <div class="field"><label>Umbral de stock bajo (%)</label><input type="number" id="cfg_threshold" min="1" max="100" value="${state.settings.lowStockThreshold}"/></div>
+          <div class="field"><label>Costo de electricidad (por kWh)</label><input type="number" step="0.01" id="cfg_kwh" min="0" value="${state.settings.electricityCostPerKwh}"/></div>
+          <div class="field"><label>Potencia promedio de impresora sin asignar (kW)</label><input type="number" step="0.01" id="cfg_power" min="0" value="${state.settings.avgPrinterPowerKw}"/></div>
+          <div class="field"><label>Margen de ganancia general (%)</label><input type="number" id="cfg_margin" min="0" value="${state.settings.marginPercent}"/></div>
+          <div class="field"><label>Avisar compra si quedan menos de (días)</label><input type="number" id="cfg_warndays" min="1" value="${state.settings.shoppingWarnDays}"/></div>
+          <button class="btn btn-block" id="saveConfigBtn">Guardar configuración</button>
+        </div>
+      </div>
+
+      <div class="section-title">Backup y exportación</div>
+      <div class="list-row">
+        <div class="info"><b>Copia de seguridad completa</b><div class="sub">Descargá o restaurá todo tu inventario, productos y planes en un archivo .json</div></div>
+        <div class="actions">
+          <button class="btn-ghost btn-sm" id="exportBtn">⬇ Descargar backup (.json)</button>
+          <label class="file-input-label" for="importFile">⬆ Restaurar backup</label>
+          <input type="file" id="importFile" accept="application/json" style="display:none"/>
+        </div>
+      </div>
+      <div class="list-row">
+        <div class="info"><b>Historial de uso</b><div class="sub">Exportá todos los consumos registrados a .csv para abrir en Excel o Sheets</div></div>
+        <div class="actions"><button class="btn-ghost btn-sm" id="exportCsvBtn">⬇ Exportar historial (.csv)</button></div>
+      </div>
+      <div class="modal-note">Restaurar un backup <b>reemplaza todos los datos actuales</b> en este dispositivo. Descargá uno antes si no querés perder lo que tenés cargado ahora.</div>
+    `;
+  }
+
+  function openPrinterForm(id){
+    const p = id ? state.printers.find(x=>x.id===id) : null;
+    const isEdit = !!p;
+    const ov = document.createElement('div'); ov.className='overlay';
+    ov.innerHTML = `
+      <div class="modal">
+        <h2>${isEdit?'Editar impresora':'Nueva impresora'}</h2>
+        <div class="modal-error" id="prError"></div>
+        <div class="field"><label>Nombre</label><input id="pr_name" value="${isEdit?escapeHTML(p.name):''}" placeholder="Creality Hi Combo #1"/></div>
+        <div class="field"><label>Potencia (kW)</label><input type="number" step="0.01" id="pr_power" min="0" value="${isEdit?p.powerKw:'0.15'}"/></div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="FIL.closeModal()">Cancelar</button>
+          <button class="btn" id="savePrBtn">${isEdit?'Guardar':'Agregar'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeModal(); });
+    document.getElementById('savePrBtn').addEventListener('click', ()=>{
+      const name = document.getElementById('pr_name').value.trim();
+      const powerKw = parseFloat(document.getElementById('pr_power').value) || 0;
+      const err = document.getElementById('prError');
+      if(!name){ err.textContent = 'Poné un nombre.'; return; }
+      if(isEdit){ Object.assign(p, { name, powerKw }); }
+      else { state.printers.push({ id: uid('pt'), name, powerKw }); }
+      closeModal(); saveData(); renderMainApp();
+      showToast(isEdit?'Impresora actualizada':'Impresora agregada');
+    });
+  }
+  function deletePrinter(id){
+    state.printers = state.printers.filter(p=>p.id!==id);
+    state.spools.forEach(s=>{ if(s.printerId===id) s.printerId=null; });
+    saveData(); renderMainApp(); showToast('Impresora eliminada');
+  }
+
+  function csvEscape(v){
+    const s = v==null ? '' : String(v);
+    if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  }
+  function exportUsageCSV(){
+    const rows = allUsage();
+    const header = ['Fecha','Rollo','Material','Color','Producto','Cantidad','Gramos','Costo material','Costo luz','Costo total','Nota'];
+    const lines = [header.join(',')];
+    rows.forEach(u=>{
+      const prod = u.productId ? state.products.find(p=>p.id===u.productId) : null;
+      lines.push([
+        new Date(u.date).toISOString().slice(0,10), csvEscape(u.spoolLabel), csvEscape(u.material), csvEscape(u.colorName),
+        csvEscape(prod?prod.name:''), u.qty||'', Math.round(u.grams), Math.round(u.materialCost||0), Math.round(u.energyCost||0), Math.round(u.totalCost||0), csvEscape(u.note)
+      ].join(','));
+    });
+    return lines.join('\n');
+  }
+
+  function bindConfigEvents(){
+    const btn = document.getElementById('saveConfigBtn');
+    if(btn) btn.addEventListener('click', ()=>{
+      state.settings.lowStockThreshold = parseFloat(document.getElementById('cfg_threshold').value) || 15;
+      state.settings.electricityCostPerKwh = parseFloat(document.getElementById('cfg_kwh').value) || 0;
+      state.settings.avgPrinterPowerKw = parseFloat(document.getElementById('cfg_power').value) || 0;
+      state.settings.marginPercent = parseFloat(document.getElementById('cfg_margin').value) || 0;
+      state.settings.shoppingWarnDays = parseFloat(document.getElementById('cfg_warndays').value) || 14;
+      state.settings.theme = document.getElementById('cfg_theme').value;
+      state.settings.currency = document.getElementById('cfg_currency').value;
+      applyTheme();
+      saveData(); renderMainApp();
+      showToast('Configuración guardada');
+    });
+    const exportBtn = document.getElementById('exportBtn');
+    if(exportBtn) exportBtn.addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); const stamp = new Date().toISOString().slice(0,10);
+      a.href = url; a.download = `trix3d-filamento-backup-${stamp}.json`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      showToast('Backup descargado');
+    });
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    if(exportCsvBtn) exportCsvBtn.addEventListener('click', ()=>{
+      const csv = exportUsageCSV();
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); const stamp = new Date().toISOString().slice(0,10);
+      a.href = url; a.download = `trix3d-historial-uso-${stamp}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      showToast('Historial exportado');
+    });
+    const importFile = document.getElementById('importFile');
+    if(importFile) importFile.addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{ state = migrate(JSON.parse(reader.result)); applyTheme(); saveData(); renderMainApp(); showToast('Backup restaurado'); }
+        catch(err){ showToast('El archivo no es un backup válido.'); }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  window.FIL = {
+    setTab, openAdd, openEdit, openDuplicate, openUsage, confirmDelete, closeModal, setFilter,
+    openProductForm, deleteProduct,
+    openPlanForm, removePlanItem, deletePlan,
+    openPrinterForm, deletePrinter,
+    logout, submitLogin, submitSignup, toggleAuthMode, submitForgotPassword
+  };
+
+  /* ================= AUTENTICACIÓN ================= */
+  function renderConfigNeeded(){
+    app.innerHTML = `
+      <div class="center-screen">
+        <div class="config-box">
+          <h2>Falta configurar Firebase</h2>
+          <p style="color:var(--text-muted);font-size:13px">Esta app necesita conectarse a un proyecto de Firebase propio para guardar usuarios y datos. Es gratis y lo hacés vos en unos minutos:</p>
+          <ol>
+            <li>Entrá a <code>console.firebase.google.com</code> y creá un proyecto nuevo.</li>
+            <li>En el proyecto, activá <b>Authentication</b> → método <b>Email/Password</b>.</li>
+            <li>Activá <b>Firestore Database</b> (modo producción).</li>
+            <li>En Configuración del proyecto → Tus apps, agregá una app web y copiá el objeto <code>firebaseConfig</code>.</li>
+            <li>Pegalo en el archivo <code>index.html</code>, en la constante <code>FIREBASE_CONFIG</code> al principio del archivo.</li>
+            <li>En Firestore → Reglas, pegá las reglas de seguridad que te pasé para que cada usuario solo pueda ver sus propios datos.</li>
+          </ol>
+        </div>
+      </div>`;
+  }
+
+  function renderAuthChecking(){
+    app.innerHTML = `<div class="center-screen"><div class="spinner"></div>Verificando sesión...</div>`;
+  }
+
+  function renderAuthScreen(){
+    const isLogin = authMode === 'login';
+    app.innerHTML = `
+      <div class="auth-wrap">
+        <div class="auth-box">
+          <h1>Control de Filamento</h1>
+          <div class="sub">TRIX3D — ${isLogin ? 'iniciá sesión' : 'creá tu cuenta'}</div>
+          <div class="modal-error" id="authError">${authError ? escapeHTML(authError) : ''}</div>
+          <div class="field"><label>Email</label><input type="email" id="auth_email" placeholder="vos@ejemplo.com"/></div>
+          <div class="field"><label>Contraseña</label><input type="password" id="auth_password" placeholder="Mínimo 6 caracteres"/></div>
+          <button class="btn btn-block" id="authSubmitBtn" ${authBusy?'disabled':''}>${authBusy ? 'Un momento...' : (isLogin ? 'Iniciar sesión' : 'Crear cuenta')}</button>
+          ${isLogin ? `<div class="auth-forgot"><a onclick="FIL.submitForgotPassword()">¿Olvidaste tu contraseña?</a></div>` : ''}
+          <div class="auth-toggle">
+            ${isLogin ? 'Todavía no tenés cuenta' : '¿Ya tenés cuenta'}?
+            <a onclick="FIL.toggleAuthMode()">${isLogin ? 'Creá una' : 'Iniciá sesión'}</a>
+          </div>
+        </div>
+      </div>`;
+    const btn = document.getElementById('authSubmitBtn');
+    btn.addEventListener('click', ()=> isLogin ? submitLogin() : submitSignup());
+    document.getElementById('auth_password').addEventListener('keydown', (e)=>{ if(e.key==='Enter') (isLogin?submitLogin:submitSignup)(); });
+  }
+
+  function toggleAuthMode(){ authMode = authMode==='login' ? 'signup' : 'login'; authError=''; paint(); }
+
+  function readAuthFields(){
+    const email = (document.getElementById('auth_email').value||'').trim();
+    const password = document.getElementById('auth_password').value||'';
+    return { email, password };
+  }
+
+  async function submitLogin(){
+    const { email, password } = readAuthFields();
+    authError = '';
+    if(!email || !password){ authError = 'Completá email y contraseña.'; paint(); return; }
+    authBusy = true; paint();
+    try{ await auth.signInWithEmailAndPassword(email, password); }
+    catch(e){ authError = translateAuthError(e); authBusy = false; paint(); }
+  }
+
+  async function submitSignup(){
+    const { email, password } = readAuthFields();
+    authError = '';
+    if(!email || !password){ authError = 'Completá email y contraseña.'; paint(); return; }
+    if(password.length < 6){ authError = 'La contraseña necesita al menos 6 caracteres.'; paint(); return; }
+    authBusy = true; paint();
+    try{ await auth.createUserWithEmailAndPassword(email, password); }
+    catch(e){ authError = translateAuthError(e); authBusy = false; paint(); }
+  }
+
+  async function submitForgotPassword(){
+    const email = (document.getElementById('auth_email').value||'').trim();
+    if(!email){ authError = 'Poné tu email arriba y tocá de nuevo en "Olvidé mi contraseña".'; paint(); return; }
+    try{ await auth.sendPasswordResetEmail(email); showToast('Te mandamos un email para restablecer la contraseña.'); }
+    catch(e){ authError = translateAuthError(e); paint(); }
+  }
+
+  function logout(){ auth.signOut(); }
+
+  function translateAuthError(e){
+    const code = e && e.code;
+    const map = {
+      'auth/invalid-email': 'Ese email no es válido.',
+      'auth/user-not-found': 'No hay ninguna cuenta con ese email.',
+      'auth/wrong-password': 'Contraseña incorrecta.',
+      'auth/invalid-credential': 'Email o contraseña incorrectos.',
+      'auth/email-already-in-use': 'Ya existe una cuenta con ese email — iniciá sesión.',
+      'auth/weak-password': 'La contraseña es muy débil (mínimo 6 caracteres).',
+      'auth/network-request-failed': 'Sin conexión a internet.',
+      'auth/too-many-requests': 'Demasiados intentos. Probá de nuevo en un rato.'
+    };
+    return (code && map[code]) || 'Ocurrió un error. Probá de nuevo.';
+  }
+
+  /* ================= DISPATCHER PRINCIPAL ================= */
+  function paint(){
+    if(!firebaseConfigured){ renderConfigNeeded(); return; }
+    if(authChecking){ renderAuthChecking(); return; }
+    if(!currentUser){ renderAuthScreen(); return; }
+    renderMainApp();
+  }
+
+  function initFirebase(){
+    if(!firebaseConfigured){ paint(); return; }
+    try{
+      firebase.initializeApp(FIREBASE_CONFIG);
+      auth = firebase.auth();
+      db = firebase.firestore();
+      try{ db.enablePersistence({ synchronizeTabs: true }); }catch(e){ /* multi-tab or unsupported, ignore */ }
+      auth.onAuthStateChanged((user)=>{
+        authChecking = false;
+        currentUser = user || null;
+        authError = ''; authBusy = false;
+        if(currentUser){ loadUserData(); }
+        else { loaded = false; paint(); }
+      });
+    }catch(e){
+      authChecking = false;
+      showToast('No se pudo conectar con Firebase. Revisá la configuración.');
+      paint();
+    }
+  }
+
+  paint();
+  initFirebase();
+})();
+
+</script>
+
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(()=>{}); });
+}
+</script>
+</body>
+</html>
